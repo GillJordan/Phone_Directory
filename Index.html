@@ -10,7 +10,7 @@
     html,body{height:100%;background:var(--bg);margin:0;color:#fff}
     .wrap{max-width:980px;margin:36px auto;padding:0 20px}
     .card{position:relative;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:28px 32px;margin:36px 0;box-shadow:0 10px 30px rgba(0,0,0,0.6);overflow:visible}
-    .rgb-bar{position:absolute;left:12px;right:12px;height:10px;border-radius:8px;z-index:0;top:-18px;background:linear-gradient(90deg,#ff4d4d,#ffb86b,#7fff00,#00e5ff,#ff4d4d);background-size:400% 100%;animation:slide 8s linear infinite}
+    .rgb-bar{position:absolute;left:12px;right:12px;height:10px;border-radius:8px;z-index:0;top:-18px;background:linear-gradient(90deg,#ff4d4d,#7fff00,#00e5ff,#ff4d4d);background-size:400% 100%;animation:slide 8s linear infinite}
     .rgb-bar.bottom{top:auto;bottom:-18px;transform:rotate(180deg)}
     @keyframes slide{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
     h1.title{text-align:center;font-size:26px;margin:6px 0 14px 0;z-index:1;position:relative}
@@ -64,13 +64,18 @@
           <input id="from" type="text" placeholder="City / Organization" />
         </div>
 
+        <div>
+          <label for="notes">Notes</label>
+          <input id="notes" type="text" placeholder="Extra details / remarks" />
+        </div>
+
         <!-- Save -->
         <button id="saveBtn" class="btn" type="submit">Save</button>
 
         <!-- Search + suggestions -->
         <div style="display:flex;gap:12px;align-items:flex-start">
           <div style="flex:1; position:relative;" class="suggestions">
-            <input id="q" type="text" placeholder="Search name, mobile, profession or from" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#fff" />
+            <input id="q" type="text" placeholder="Search name, mobile, profession, from or notes" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#fff" />
             <div id="suggestionsList" class="suggestions-list" style="display:none"></div>
           </div>
           <button id="searchBtn" type="button" class="btn secondary">Search</button>
@@ -82,11 +87,11 @@
       <table aria-label="contacts" style="margin-top:16px">
         <thead>
           <tr>
-            <th>Name</th><th>Mobile</th><th>Profession</th><th>From</th><th>Actions</th>
+            <th>Name</th><th>Mobile</th><th>Profession</th><th>From</th><th>Notes</th><th>Actions</th>
           </tr>
         </thead>
         <tbody id="tbody">
-          <tr><td colspan="5" class="small-muted">No records yet — add or search contacts.</td></tr>
+          <tr><td colspan="6" class="small-muted">No records yet — add or search contacts.</td></tr>
         </tbody>
       </table>
 
@@ -95,9 +100,8 @@
   </div>
 
   <script>
-    // ---------- YAHAN APNA APPS SCRIPT WEB APP URL DAALO ----------
-    // Format: https://script.google.com/macros/s/AKfycbXXXX/exec
-    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx9pGjfTv6JkSZpS8wdlH-YKaro-0QnTi9hRUEdmkx9SGa2wx1OQPGKxEceuNvS_5Kedg/exec";
+    // ---------- APNA APPS SCRIPT WEB APP URL YAHAN DAALO ----------
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyeSH2kV_NouUFB9PUeIpXh6fTYCUwj02ayNw22XGU00EDF7NjBI38Y6VijLCXsmD9s/exec";
     const scriptUrl = SCRIPT_URL;
     // --------------------------------------------------------------
 
@@ -108,6 +112,7 @@
     const mobileEl = document.getElementById('mobile');
     const professionEl = document.getElementById('profession');
     const fromEl = document.getElementById('from');
+    const notesEl = document.getElementById('notes');
     const saveBtn = document.getElementById('saveBtn');
     const searchBtn = document.getElementById('searchBtn');
     const qInput = document.getElementById('q');
@@ -135,7 +140,7 @@
         .catch(e=>({status:'error',message:e.message}));
     }
 
-    // IMPORTANT: form-encoded POST (no JSON header) to avoid CORS issues
+    // form-encoded POST (no JSON header)
     function apiPost(payload){
       if(!scriptUrl || scriptUrl.includes('PASTE_YOUR_WEB_APP_URL_HERE'))
         return Promise.resolve({status:'error',message:'no url'});
@@ -147,19 +152,16 @@
         }
       });
 
-      return fetch(scriptUrl, {
-        method:'POST',
-        body: body
-      })
-      .then(r=>r.json())
-      .catch(e=>({status:'error',message:e.message}));
+      return fetch(scriptUrl, { method:'POST', body })
+        .then(r=>r.json())
+        .catch(e=>({status:'error',message:e.message}));
     }
 
     function render(list){
       currentList = Array.isArray(list) ? list.slice() : [];
       tbody.innerHTML = '';
       if(!currentList.length){
-        tbody.innerHTML = '<tr><td colspan="5" class="small-muted">No records — add or search contacts.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="small-muted">No records — add or search contacts.</td></tr>';
         return;
       }
       currentList.forEach(row=>{
@@ -169,17 +171,14 @@
           <td>${escapeHtml(row.mobile)}</td>
           <td>${escapeHtml(row.profession||'')}</td>
           <td>${escapeHtml(row.from||'')}</td>
+          <td>${escapeHtml(row.notes||'')}</td>
           <td>
             <button class="edit-small" type="button" data-action="edit">Edit</button>
             <button class="edit-small danger" type="button" data-action="delete">Delete</button>
           </td>
         `;
-        const editBtn = tr.querySelector('button[data-action="edit"]');
-        const delBtn  = tr.querySelector('button[data-action="delete"]');
-
-        editBtn.addEventListener('click', ()=> loadIntoForm(row));
-        delBtn.addEventListener('click', ()=> handleDelete(row));
-
+        tr.querySelector('[data-action="edit"]').addEventListener('click', ()=> loadIntoForm(row));
+        tr.querySelector('[data-action="delete"]').addEventListener('click', ()=> handleDelete(row));
         tbody.appendChild(tr);
       });
     }
@@ -189,6 +188,7 @@
       mobileEl.value = item.mobile || '';
       professionEl.value = item.profession || '';
       fromEl.value = item.from || '';
+      notesEl.value = item.notes || '';
       editingOriginalMobile = item.mobile || null;
       saveBtn.textContent = 'Update';
       updateStatus('Editing: ' + (item.name || item.mobile));
@@ -200,23 +200,18 @@
       const ok = confirm('Delete this contact from local + Google Sheet?');
       if(!ok) return;
 
-      // Local remove (all entries with same mobile)
       phonebook = phonebook.filter(p => p.mobile !== item.mobile);
       saveLocal();
       render(phonebook);
       updateStatus('Deleted locally');
 
-      // Queue delete for backend
       queueDelete(item.mobile);
       processQueue();
 
       if(editingOriginalMobile === item.mobile){
         editingOriginalMobile = null;
         saveBtn.textContent = 'Save';
-        nameEl.value = '';
-        mobileEl.value = '';
-        professionEl.value = '';
-        fromEl.value = '';
+        nameEl.value = mobileEl.value = professionEl.value = fromEl.value = notesEl.value = '';
       }
     }
 
@@ -252,10 +247,10 @@
       const q = (qInput.value || '').trim().toLowerCase();
       if(!q){ hideSuggestions(); return; }
 
-      // offline suggestions from local
+      // offline suggestions
       if(!navigator.onLine || !scriptUrl || scriptUrl.includes('PASTE_YOUR_WEB_APP_URL_HERE')){
         const localRows = phonebook.filter(it =>
-          (it.name + ' ' + it.mobile + ' ' + (it.profession||'') + ' ' + (it.from||''))
+          (it.name + ' ' + it.mobile + ' ' + (it.profession||'') + ' ' + (it.from||'') + ' ' + (it.notes||''))
             .toLowerCase().includes(q)
         );
         showSuggestions(localRows);
@@ -263,15 +258,16 @@
         return;
       }
 
-      // online suggestions from sheet
+      // online suggestions
       updateStatus('Fetching suggestions...');
       const res = await apiGet({action:'search', q});
       if(res && res.status === 'ok' && Array.isArray(res.rows)){
         const rows = res.rows.map(row=>({
-          name: row['Name']||row['name']||'',
-          mobile: row['Number']||row['number']||row['mobile']||'',
-          profession: row['Profession']||row['profession']||'',
-          from: row['From']||row['from']||''
+          name: row['Name']||'',
+          mobile: row['Number']||'',
+          profession: row['Profession']||'',
+          from: row['From']||'',
+          notes: row['Notes']||''
         }));
         showSuggestions(rows);
         updateStatus('Suggestions ready');
@@ -290,7 +286,7 @@
       q = (q || '').toLowerCase();
       if(!q) return phonebook.slice();
       return phonebook.filter(it =>
-        (it.name + ' ' + it.mobile + ' ' + (it.profession||'') + ' ' + (it.from||''))
+        (it.name + ' ' + it.mobile + ' ' + (it.profession||'') + ' ' + (it.from||'') + ' ' + (it.notes||''))
           .toLowerCase().includes(q)
       );
     }
@@ -305,18 +301,17 @@
       }
       updateStatus('Showing local results (' + localMatches.length + ')');
 
-      if(!navigator.onLine || !scriptUrl || scriptUrl.includes('PASTE_YOUR_WEB_APP_URL_HERE')){
-        return; // offline → local only
-      }
+      if(!navigator.onLine || !scriptUrl || scriptUrl.includes('PASTE_YOUR_WEB_APP_URL_HERE')) return;
 
       updateStatus('Searching Google Sheet...');
       const r = await apiGet({action:'search', q});
       if(r && r.status === 'ok' && Array.isArray(r.rows)){
         const remote = r.rows.map(row=>({
-          name: row['Name']||row['name']||'',
-          mobile: row['Number']||row['number']||row['mobile']||'',
-          profession: row['Profession']||row['profession']||'',
-          from: row['From']||row['from']||''
+          name: row['Name']||'',
+          mobile: row['Number']||'',
+          profession: row['Profession']||'',
+          from: row['From']||'',
+          notes: row['Notes']||''
         }));
         const merged = [...remote];
         localMatches.forEach(lm=>{
@@ -343,7 +338,7 @@
       }
     });
 
-    // ---- SYNC QUEUE HELPERS ----
+    // ---- SYNC QUEUE ----
     function queueAdd(payload){
       syncQueue.push({op:'add', payload});
       saveQueue();
@@ -371,7 +366,8 @@
               name: op.payload.name,
               number: op.payload.mobile,
               profession: op.payload.profession,
-              from: op.payload.from
+              from: op.payload.from,
+              notes: op.payload.notes
             });
             if(!(res && res.status === 'ok')) remaining.push(op);
           } else if(op.op === 'update'){
@@ -381,7 +377,8 @@
               name: op.payload.name,
               number: op.payload.mobile,
               profession: op.payload.profession,
-              from: op.payload.from
+              from: op.payload.from,
+              notes: op.payload.notes
             });
             if(!(res && res.status === 'ok')) remaining.push(op);
           } else if(op.op === 'delete'){
@@ -389,7 +386,6 @@
               action:'delete',
               originalMobile: op.originalMobile
             });
-            // not_found bhi ok maan lo (already deleted)
             if(!(res && (res.status === 'ok' || res.status === 'not_found'))){
               remaining.push(op);
             }
@@ -400,11 +396,8 @@
       }
       syncQueue = remaining;
       saveQueue();
-      if(syncQueue.length === 0){
-        updateStatus('All local changes synced to Google Sheet');
-      } else {
-        updateStatus('Some changes could not sync (will retry when online)');
-      }
+      if(syncQueue.length === 0) updateStatus('All local changes synced to Google Sheet');
+      else updateStatus('Some changes could not sync (will retry when online)');
     }
 
     // ---- FORM SUBMIT ----
@@ -415,10 +408,11 @@
       if(!name || !mobile) return alert('Name and mobile required');
 
       const payloadCommon = {
-        name: name,
-        mobile: mobile,
+        name,
+        mobile,
         profession: professionEl.value.trim(),
-        from: fromEl.value.trim()
+        from: fromEl.value.trim(),
+        notes: notesEl.value.trim()
       };
 
       if(editingOriginalMobile){
@@ -449,7 +443,7 @@
         await processQueue();
       }
 
-      nameEl.value=''; mobileEl.value=''; professionEl.value=''; fromEl.value='';
+      nameEl.value = mobileEl.value = professionEl.value = fromEl.value = notesEl.value = '';
     });
 
     function init(){
