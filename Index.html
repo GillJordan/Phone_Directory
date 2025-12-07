@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Phone Directory — Offline + Sync</title>
+  <style>
+    :root{--bg:#070707;--card:#0f0f10;--muted:#9aa0a6}
+    *{box-sizing:border-box;font-family:Poppins,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+    html,body{height:100%;background:var(--bg);margin:0;color:#fff}
+    .wrap{max-width:980px;margin:36px auto;padding:0 20px}
+    .card{position:relative;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border-radius:12px;padding:28px 32px;margin:36px 0;box-shadow:0 10px 30px rgba(0,0,0,0.6);overflow:visible}
+    .rgb-bar{position:absolute;left:12px;right:12px;height:10px;border-radius:8px;z-index:0;top:-18px;background:linear-gradient(90deg,#ff4d4d,#ffb86b,#7fff00,#00e5ff,#ff4d4d);background-size:400% 100%;animation:slide 8s linear infinite}
+    .rgb-bar.bottom{top:auto;bottom:-18px;transform:rotate(180deg)}
+    @keyframes slide{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+    h1.title{text-align:center;font-size:26px;margin:6px 0 14px 0;z-index:1;position:relative}
+    form{display:grid;grid-template-columns:1fr;gap:12px;z-index:1}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    input[type=text], input[type=tel]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:#fff}
+    .btn{padding:12px;border-radius:10px;border:0;background:linear-gradient(90deg,#ff4d4d,#00e5ff);color:#fff;font-weight:700;cursor:pointer}
+    .btn.secondary{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    .edit-small{padding:6px 10px;border-radius:8px;border:0;background:transparent;color:#00e5ff;cursor:pointer;font-weight:600;font-size:12px}
+    .edit-small.danger{color:#ff6b6b}
+    .edit-small + .edit-small{margin-left:6px}
+    .small-muted{color:var(--muted);font-size:13px;margin-top:8px}
+    table{width:100%;border-collapse:collapse;margin-top:18px;z-index:1}
+    th,td{padding:12px;border-bottom:1px solid rgba(255,255,255,0.03);text-align:left;font-size:14px}
+    th{color:var(--muted)}
+    .suggestions { position:relative; }
+    .suggestions-list {
+      position:absolute; left:0; right:0; top:46px; background:var(--card); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.6);
+      max-height:220px; overflow:auto; z-index:50; border:1px solid rgba(255,255,255,0.04);
+    }
+    .suggestion-item { padding:10px 12px; cursor:pointer; font-size:14px; border-bottom:1px solid rgba(255,255,255,0.02); }
+    .suggestion-item:last-child{ border-bottom:0; }
+    .suggestion-item:hover { background: rgba(255,255,255,0.02); }
+    @media(max-width:720px){.wrap{padding:0 12px}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card" aria-labelledby="appTitle">
+      <div class="rgb-bar"></div>
+      <h1 id="appTitle" class="title">Phone Directory — Offline + Sync</h1>
+
+      <form id="entryForm" autocomplete="off">
+        <div>
+          <label for="name">Name</label>
+          <input id="name" type="text" placeholder="Full name" />
+        </div>
+
+        <div>
+          <label for="mobile">Mobile Number</label>
+          <input id="mobile" type="tel" placeholder="+91 98765 43210" />
+        </div>
+
+        <div>
+          <label for="profession">Profession</label>
+          <input id="profession" type="text" placeholder="e.g. Trader, Student" />
+        </div>
+
+        <div>
+          <label for="from">From</label>
+          <input id="from" type="text" placeholder="City / Organization" />
+        </div>
+
+        <!-- Save -->
+        <button id="saveBtn" class="btn" type="submit">Save</button>
+
+        <!-- Search + suggestions -->
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="flex:1; position:relative;" class="suggestions">
+            <input id="q" type="text" placeholder="Search name, mobile, profession or from" style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:#fff" />
+            <div id="suggestionsList" class="suggestions-list" style="display:none"></div>
+          </div>
+          <button id="searchBtn" type="button" class="btn secondary">Search</button>
+        </div>
+      </form>
+
+      <div class="small-muted" id="status">Status: Initializing...</div>
+
+      <table aria-label="contacts" style="margin-top:16px">
+        <thead>
+          <tr>
+            <th>Name</th><th>Mobile</th><th>Profession</th><th>From</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="5" class="small-muted">No records yet — add or search contacts.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="rgb-bar bottom"></div>
+    </section>
+  </div>
+
+  <script>
+    // ---------- YAHAN APNA APPS SCRIPT WEB APP URL DAALO ----------
+    // Format: https://script.google.com/macros/s/AKfycbXXXX/exec
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx9pGjfTv6JkSZpS8wdlH-YKaro-0QnTi9hRUEdmkx9SGa2wx1OQPGKxEceuNvS_5Kedg/exec";
+    const scriptUrl = SCRIPT_URL;
+    // --------------------------------------------------------------
+
+    const STORAGE_KEY = 'phone_directory_offline_v1';
+    const QUEUE_KEY   = 'phone_directory_sync_queue_v1';
+
+    const nameEl = document.getElementById('name');
+    const mobileEl = document.getElementById('mobile');
+    const professionEl = document.getElementById('profession');
+    const fromEl = document.getElementById('from');
+    const saveBtn = document.getElementById('saveBtn');
+    const searchBtn = document.getElementById('searchBtn');
+    const qInput = document.getElementById('q');
+    const suggestionsListEl = document.getElementById('suggestionsList');
+    const tbody = document.getElementById('tbody');
+    const statusEl = document.getElementById('status');
+
+    let phonebook = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    let syncQueue = JSON.parse(localStorage.getItem(QUEUE_KEY) || '[]');
+    let editingOriginalMobile = null;
+    let currentList = phonebook.slice();
+
+    function saveLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(phonebook)); }
+    function saveQueue(){ localStorage.setItem(QUEUE_KEY, JSON.stringify(syncQueue)); }
+    function updateStatus(msg){ statusEl.textContent = 'Status: ' + msg; }
+    function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    function apiGet(params){
+      if(!scriptUrl || scriptUrl.includes('PASTE_YOUR_WEB_APP_URL_HERE'))
+        return Promise.resolve({status:'error',message:'no url'});
+      const url = new URL(scriptUrl);
+      Object.keys(params||{}).forEach(k=>url.searchParams.set(k, params[k]));
+      return fetch(url.toString(), {cache:'no-store'})
+        .then(r=>r.json())
+        .catch(e=>({status:'error',message:e.message}));
+    }
+
+    // IMPORTANT: form-encoded POST (no JSON header) to avoid CORS issues
+    function apiPost(payload){
+      if(!scriptUrl || scriptUrl.includes('PASTE_YOUR_WEB_APP_URL_HERE'))
+        return Promise.resolve({status:'error',message:'no url'});
+
+      const body = new URLSearchParams();
+      Object.keys(payload||{}).forEach(k=>{
+        if(payload[k] !== undefined && payload[k] !== null){
+          body.append(k, String(payload[k]));
+        }
+      });
+
+      return fetch(scriptUrl, {
+        method:'POST',
+        body: body
+      })
+      .then(r=>r.json())
+      .catch(e=>({status:'error',message:e.message}));
+    }
+
+    function render(list){
+      currentList = Array.isArray(list) ? list.slice() : [];
+      tbody.innerHTML = '';
+      if(!currentList.length){
+        tbody.innerHTML = '<tr><td colspan="5" class="small-muted">No records — add or search contacts.</td></tr>';
+        return;
+      }
+      currentList.forEach(row=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(row.name)}</td>
+          <td>${escapeHtml(row.mobile)}</td>
+          <td>${escapeHtml(row.profession||'')}</td>
+          <td>${escapeHtml(row.from||'')}</td>
+          <td>
+            <button class="edit-small" type="button" data-action="edit">Edit</button>
+            <button class="edit-small danger" type="button" data-action="delete">Delete</button>
+          </td>
+        `;
+        const editBtn = tr.querySelector('button[data-action="edit"]');
+        const delBtn  = tr.querySelector('button[data-action="delete"]');
+
+        editBtn.addEventListener('click', ()=> loadIntoForm(row));
+        delBtn.addEventListener('click', ()=> handleDelete(row));
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function loadIntoForm(item){
+      nameEl.value = item.name || '';
+      mobileEl.value = item.mobile || '';
+      professionEl.value = item.profession || '';
+      fromEl.value = item.from || '';
+      editingOriginalMobile = item.mobile || null;
+      saveBtn.textContent = 'Update';
+      updateStatus('Editing: ' + (item.name || item.mobile));
+      nameEl.focus();
+    }
+
+    function handleDelete(item){
+      if(!item || !item.mobile) return;
+      const ok = confirm('Delete this contact from local + Google Sheet?');
+      if(!ok) return;
+
+      // Local remove (all entries with same mobile)
+      phonebook = phonebook.filter(p => p.mobile !== item.mobile);
+      saveLocal();
+      render(phonebook);
+      updateStatus('Deleted locally');
+
+      // Queue delete for backend
+      queueDelete(item.mobile);
+      processQueue();
+
+      if(editingOriginalMobile === item.mobile){
+        editingOriginalMobile = null;
+        saveBtn.textContent = 'Save';
+        nameEl.value = '';
+        mobileEl.value = '';
+        professionEl.value = '';
+        fromEl.value = '';
+      }
+    }
+
+    function debounce(fn, wait=300){
+      let t;
+      return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args), wait); };
+    }
+
+    function hideSuggestions(){ suggestionsListEl.style.display = 'none'; suggestionsListEl.innerHTML = ''; }
+
+    function showSuggestions(rows){
+      if(!rows || !rows.length){ hideSuggestions(); return; }
+      suggestionsListEl.innerHTML = '';
+      rows.slice(0,10).forEach(r=>{
+        const item = document.createElement('div');
+        item.className = 'suggestion-item';
+        item.innerHTML = `<strong>${escapeHtml(r.name || r.mobile || '')}</strong>
+                          <div style="font-size:12px;color:var(--muted)">
+                            ${escapeHtml(r.mobile || '')}
+                            ${r.profession ? ' • ' + escapeHtml(r.profession) : ''}
+                          </div>`;
+        item.addEventListener('click', ()=>{
+          qInput.value = r.name || r.mobile || '';
+          hideSuggestions();
+          performSearch();
+        });
+        suggestionsListEl.appendChild(item);
+      });
+      suggestionsListEl.style.display = 'block';
+    }
+
+    const lookupSuggestions = debounce(async ()=>{
+      const q = (qInput.value || '').trim().toLowerCase();
+      if(!q){ hideSuggestions(); return; }
+
+      // offline suggestions from local
+      if(!navigator.onLine || !scriptUrl || scriptUrl.includes('PASTE_YOUR_WEB_APP_URL_HERE')){
+        const localRows = phonebook.filter(it =>
+          (it.name + ' ' + it.mobile + ' ' + (it.profession||'') + ' ' + (it.from||''))
+            .toLowerCase().includes(q)
+        );
+        showSuggestions(localRows);
+        updateStatus('Suggestions from local contacts');
+        return;
+      }
+
+      // online suggestions from sheet
+      updateStatus('Fetching suggestions...');
+      const res = await apiGet({action:'search', q});
+      if(res && res.status === 'ok' && Array.isArray(res.rows)){
+        const rows = res.rows.map(row=>({
+          name: row['Name']||row['name']||'',
+          mobile: row['Number']||row['number']||row['mobile']||'',
+          profession: row['Profession']||row['profession']||'',
+          from: row['From']||row['from']||''
+        }));
+        showSuggestions(rows);
+        updateStatus('Suggestions ready');
+      } else {
+        hideSuggestions();
+        updateStatus('No suggestions / remote error');
+      }
+    },260);
+
+    qInput.addEventListener('input', lookupSuggestions);
+    document.addEventListener('click', ev=>{
+      if(!ev.target.closest('.suggestions')) hideSuggestions();
+    });
+
+    function localSearch(q){
+      q = (q || '').toLowerCase();
+      if(!q) return phonebook.slice();
+      return phonebook.filter(it =>
+        (it.name + ' ' + it.mobile + ' ' + (it.profession||'') + ' ' + (it.from||''))
+          .toLowerCase().includes(q)
+      );
+    }
+
+    async function performSearch(){
+      const q = (qInput.value || '').trim();
+      const localMatches = localSearch(q);
+      render(localMatches);
+      if(!q){
+        updateStatus('Showing local contacts (' + localMatches.length + ')');
+        return;
+      }
+      updateStatus('Showing local results (' + localMatches.length + ')');
+
+      if(!navigator.onLine || !scriptUrl || scriptUrl.includes('PASTE_YOUR_WEB_APP_URL_HERE')){
+        return; // offline → local only
+      }
+
+      updateStatus('Searching Google Sheet...');
+      const r = await apiGet({action:'search', q});
+      if(r && r.status === 'ok' && Array.isArray(r.rows)){
+        const remote = r.rows.map(row=>({
+          name: row['Name']||row['name']||'',
+          mobile: row['Number']||row['number']||row['mobile']||'',
+          profession: row['Profession']||row['profession']||'',
+          from: row['From']||row['from']||''
+        }));
+        const merged = [...remote];
+        localMatches.forEach(lm=>{
+          if(!merged.some(rm =>
+            (rm.mobile && rm.mobile === lm.mobile) ||
+            (rm.name && rm.name.toLowerCase() === lm.name.toLowerCase())
+          )){
+            merged.push(lm);
+          }
+        });
+        render(merged);
+        updateStatus('Online results: ' + remote.length + ' | total shown: ' + merged.length);
+      } else {
+        updateStatus('Online search failed — showing local only');
+      }
+    }
+
+    searchBtn.addEventListener('click', performSearch);
+    qInput.addEventListener('keydown', ev=>{
+      if(ev.key === 'Enter'){
+        ev.preventDefault();
+        performSearch();
+        hideSuggestions();
+      }
+    });
+
+    // ---- SYNC QUEUE HELPERS ----
+    function queueAdd(payload){
+      syncQueue.push({op:'add', payload});
+      saveQueue();
+    }
+    function queueUpdate(originalMobile, payload){
+      syncQueue.push({op:'update', originalMobile, payload});
+      saveQueue();
+    }
+    function queueDelete(originalMobile){
+      syncQueue.push({op:'delete', originalMobile});
+      saveQueue();
+    }
+
+    async function processQueue(){
+      if(!navigator.onLine || !scriptUrl || scriptUrl.includes('PASTE_YOUR_WEB_APP_URL_HERE')) return;
+      if(!syncQueue.length) return;
+
+      updateStatus('Syncing ' + syncQueue.length + ' change(s) to Google Sheet...');
+      const remaining = [];
+      for(const op of syncQueue){
+        try{
+          if(op.op === 'add'){
+            const res = await apiPost({
+              action:'add',
+              name: op.payload.name,
+              number: op.payload.mobile,
+              profession: op.payload.profession,
+              from: op.payload.from
+            });
+            if(!(res && res.status === 'ok')) remaining.push(op);
+          } else if(op.op === 'update'){
+            const res = await apiPost({
+              action:'update',
+              originalMobile: op.originalMobile,
+              name: op.payload.name,
+              number: op.payload.mobile,
+              profession: op.payload.profession,
+              from: op.payload.from
+            });
+            if(!(res && res.status === 'ok')) remaining.push(op);
+          } else if(op.op === 'delete'){
+            const res = await apiPost({
+              action:'delete',
+              originalMobile: op.originalMobile
+            });
+            // not_found bhi ok maan lo (already deleted)
+            if(!(res && (res.status === 'ok' || res.status === 'not_found'))){
+              remaining.push(op);
+            }
+          }
+        } catch(err){
+          remaining.push(op);
+        }
+      }
+      syncQueue = remaining;
+      saveQueue();
+      if(syncQueue.length === 0){
+        updateStatus('All local changes synced to Google Sheet');
+      } else {
+        updateStatus('Some changes could not sync (will retry when online)');
+      }
+    }
+
+    // ---- FORM SUBMIT ----
+    document.getElementById('entryForm').addEventListener('submit', async ev=>{
+      ev.preventDefault();
+      const name = nameEl.value.trim();
+      const mobile = mobileEl.value.trim();
+      if(!name || !mobile) return alert('Name and mobile required');
+
+      const payloadCommon = {
+        name: name,
+        mobile: mobile,
+        profession: professionEl.value.trim(),
+        from: fromEl.value.trim()
+      };
+
+      if(editingOriginalMobile){
+        const idx = phonebook.findIndex(p => p.mobile === editingOriginalMobile);
+        if(idx !== -1){
+          const createdAt = phonebook[idx].createdAt || new Date().toISOString();
+          phonebook[idx] = {...payloadCommon, createdAt, updatedAt:new Date().toISOString()};
+        } else {
+          phonebook.unshift({...payloadCommon, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()});
+        }
+        saveLocal();
+        render(phonebook);
+        updateStatus('Updated locally');
+
+        queueUpdate(editingOriginalMobile, payloadCommon);
+        await processQueue();
+
+        editingOriginalMobile = null;
+        saveBtn.textContent = 'Save';
+      } else {
+        const item = {...payloadCommon, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString()};
+        phonebook.unshift(item);
+        saveLocal();
+        render(phonebook);
+        updateStatus('Saved locally');
+
+        queueAdd(payloadCommon);
+        await processQueue();
+      }
+
+      nameEl.value=''; mobileEl.value=''; professionEl.value=''; fromEl.value='';
+    });
+
+    function init(){
+      render(phonebook);
+      if(!scriptUrl || scriptUrl.includes('PASTE_YOUR_WEB_APP_URL_HERE')){
+        updateStatus('No Apps Script URL configured — only offline/local mode is active.');
+      } else {
+        updateStatus(navigator.onLine ? 'Ready — offline + Google sync' : 'Ready — offline mode (sync when online)');
+      }
+      if(navigator.onLine) processQueue();
+    }
+
+    window.addEventListener('online', ()=>{
+      updateStatus('Back online — syncing queued changes...');
+      processQueue();
+    });
+    window.addEventListener('offline', ()=>{
+      updateStatus('Offline — working with local contacts only');
+    });
+
+    init();
+  </script>
+</body>
+</html>
